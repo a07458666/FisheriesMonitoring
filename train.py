@@ -7,7 +7,7 @@ import math
 from torch import nn
 from tqdm import tqdm
 from torch import optim
-from torch.utils.data import DataLoader
+import torch.utils.data as data
 from torch.optim.lr_scheduler import (
     MultiStepLR,
     StepLR,
@@ -17,35 +17,40 @@ from torch.optim.lr_scheduler import (
 from matplotlib import pyplot as plt
 from torch.cuda.amp import GradScaler, autocast
 
-from src.data_loading.data_loader import BirdImageLoader
-from src.txt_loading.txt_loader import (
-    readClassIdx,
-    readTrainImages,
-    splitDataList,
-)
 from src.loss_functions.CrossEntropyLS import CrossEntropyLS
 from torch.utils.tensorboard import SummaryWriter
 from src.models.swin_transformer import SwinTransformer
 from bottleneck_transformer_pytorch import BottleStack
+import torchvision.datasets as datasets
 
+try:
+    import wandb
+except ImportError:
+    wandb = None
+    logger.info("Install Weights & Biases for experiment logging via 'pip install wandb' (recommended)")
 
+# Baseline: Rank 40th, Score=1.65163
 def main(args):
+    os.environ["WANDB_WATCH"] = "false"
+    if (args.gpu != ""):
+        os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
+    if (wandb != None):
+        wandb.init(project="Fish", entity="andy-su", name=args.output_foloder)
+        wandb.config.update(args)
+        wandb.define_metric("loss", summary="min")
+        wandb.define_metric("acc", summary="max")
+
     writer = create_writer(args)
     device = checkGPU()
-    class_to_idx = readClassIdx(args)
-    data_list = readTrainImages(args)
-    train_data_list, val_data_list, _ = splitDataList(data_list, 0.9, 0.1)
     model = create_model(args).to(device)
-    train_loader, val_loader = create_dataloader(
-        args, train_data_list, val_data_list, class_to_idx
-    )
+    train_loader, val_loader = create_dataloader(args)
     checkOutputDirectoryAndCreate(args)
     train(args, model, train_loader, val_loader, writer, device)
 
 
 def checkOutputDirectoryAndCreate(args):
-    if not os.path.exists(args.output_foloder):
-        os.makedirs(args.output_foloder)
+    if not os.path.exists("./checkpoint/{}".format(args.output_foloder)):
+        os.makedirs("./checkpoint/{}".format(args.output_foloder))
 
 
 def set_parameter_requires_grad(model, feature_extracting):
@@ -74,7 +79,7 @@ def update_loss_hist(args, train_list, val_list, name="result"):
     plt.ylabel("Loss")
     plt.xlabel("Epoch")
     plt.legend(["train", "val"], loc="center right")
-    plt.savefig("{}/{}.png".format(args.output_foloder, name))
+    plt.savefig("./checkpoint/{}/{}.png".format(args.output_foloder, name))
     plt.clf()
 
 
@@ -125,7 +130,7 @@ def create_model(args):
         embed_dim=192,
         depths=[2, 2, 18, 2],
         num_heads=[6, 12, 24, 48],
-        num_classes=21841,
+        num_classes=8,
         drop_path_rate=0.2,
     )
     if args.pretrain_model_path != "":
@@ -134,20 +139,21 @@ def create_model(args):
         msg = backbone.load_state_dict(checkpoint["model"], strict=False)
         # backbone.load_state_dict(torch.load(args.pretrain_model_path)['model']).to(device)
         # set_parameter_requires_grad(backbone, True)
-    projector = nn.Sequential(
-        nn.Linear(21841, 2048),
-        nn.BatchNorm1d(2048),
-        nn.LeakyReLU(),
-        nn.Linear(2048, 512),
-        nn.BatchNorm1d(512),
-        nn.LeakyReLU(),
-        nn.Linear(512, 200),
-    )
-    model = nn.Sequential(backbone, projector)
+#     projector = nn.Sequential(
+#         nn.Linear(21841, 2048),
+#         nn.BatchNorm1d(2048),
+#         nn.LeakyReLU(),
+#         nn.Linear(2048, 512),
+#         nn.BatchNorm1d(512),
+#         nn.LeakyReLU(),
+#         nn.Linear(512, 8),
+#     )
+#     model = nn.Sequential(backbone, projector)
+    model = backbone
     return model
 
 
-def create_dataloader(args, train_data_list, val_data_list, class_to_idx):
+def create_dataloader(args):
     from src.helper_functions.augmentations import (
         get_aug_trnsform,
         get_eval_trnsform,
@@ -156,29 +162,28 @@ def create_dataloader(args, train_data_list, val_data_list, class_to_idx):
 
     trans_aug = get_all_in_aug()
     trans_eval = get_eval_trnsform()
-    dataset_train = BirdImageLoader(
-        args.data_path, train_data_list, class_to_idx, transform=trans_aug
-    )
-    dataset_val = BirdImageLoader(
-        args.data_path, val_data_list, class_to_idx, transform=trans_eval
-    )
-
-    train_loader = DataLoader(
-        dataset_train,
+    train_set = datasets.ImageFolder(args.data_path, transform=trans_aug)
+    print("====")
+    print("class",np.unique(train_set.targets, return_counts=True))
+    # Random split
+    train_set_size = int(len(train_set) * 0.8)
+    valid_set_size = len(train_set) - train_set_size
+    train_set, valid_set = data.random_split(train_set, [train_set_size, valid_set_size])
+   
+    train_loader = data.DataLoader(
+        train_set,
         num_workers=args.workers,
         batch_size=args.batch_size,
         shuffle=True,
     )
-    val_loader = DataLoader(
-        dataset_val,
+    val_loader = data.DataLoader(
+        valid_set,
         num_workers=args.workers,
         batch_size=args.batch_size,
         shuffle=True,
     )
-
-    print("class_to_idx ", len(class_to_idx))
-    print("train len", dataset_train.__len__())
-    print("val len", dataset_val.__len__())
+    print("train len", train_set_size)
+    print("val len", valid_set_size)
     return train_loader, val_loader
 
 
@@ -199,13 +204,6 @@ def accuracy(output, target, topk=(1,)):
             correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
             res.append(correct_k.mul_(100.0 / batch_size))
         return res
-
-
-def save_checkpoint(state, is_best, filename="checkpoint.pth.tar"):
-    torch.save(state, filename)
-    if is_best:
-        shutil.copyfile(filename, "model_best.pth.tar")
-
 
 def pass_epoch(
     model, loader, model_optimizer, loss_fn, scaler, device, mode="Train"
@@ -235,8 +233,8 @@ def pass_epoch(
             model_optimizer.step()
 
         loss += loss_batch.detach().cpu()
-        acc_top1 += loss_batch_acc_top[0]
-        acc_top5 += loss_batch_acc_top[1]
+        acc_top1 += loss_batch_acc_top[0].detach().cpu()
+        acc_top5 += loss_batch_acc_top[1].detach().cpu()
 
     loss /= i_batch + 1
     acc_top1 /= i_batch + 1
@@ -271,11 +269,9 @@ def train(args, model, train_loader, val_loader, writer, device):
         weight_decay=args.weight_decay,
     )
     model_scheduler = CosineAnnealingLR(model_optimizer, T_max=20)
-    torch.save(model, "{}/checkpoint.pth.tar".format(args.output_foloder))
+    torch.save(model, "./checkpoint/{}/checkpoint.pth.tar".format(args.output_foloder))
     loss_fn = CrossEntropyLS(args.label_smooth)
     scaler = GradScaler()
-    stop = 0
-    min_val_loss = math.inf
     for epoch in range(args.epochs):
         print("\nEpoch {}/{}".format(epoch + 1, args.epochs))
         print("-" * 10)
@@ -319,42 +315,29 @@ def train(args, model, train_loader, val_loader, writer, device):
         val_acc_top1_history.append(val_acc_top1)
         val_acc_top5_history.append(val_acc_top5)
 
+        if (wandb != None):
+            logMsg = {}
+            logMsg["epoch"] = epoch
+            logMsg["loss/train"] = train_loss
+            logMsg["loss/val"] = val_loss
+            logMsg["top1/train"] = train_acc_top1
+            logMsg["top1/val"] = val_acc_top1
+            logMsg["top5/train"] = train_acc_top5
+            logMsg["top5/val"] = val_acc_top5
+            wandb.log(logMsg)
+            wandb.watch(model,log = "all", log_graph=True)
+        
         update_loss_hist(args, train_loss_history, val_loss_history, "Loss")
-        update_loss_hist(
-            args, train_acc_top5_history, val_acc_top5_history, "Top5"
-        )
-        update_loss_hist(
-            args, train_acc_top1_history, val_acc_top1_history, "Top1"
-        )
-        if val_loss <= min_val_loss:
-            min_val_loss = val_loss
-            print("Best, save model, epoch = {}".format(epoch))
-            torch.save(
-                model,
-                "{}/checkpoint.pth.tar".format(args.output_foloder),
-            )
-        else:
-            stop += 1
-            if stop > 10:
-                print("early stopping")
-                break
+        update_loss_hist(args, train_acc_top5_history, val_acc_top5_history, "Top5")
+        update_loss_hist(args, train_acc_top1_history, val_acc_top1_history, "Top1")
+        torch.save(model,"./checkpoint/{}/checkpoint.pth.tar".format(args.output_foloder))
     torch.cuda.empty_cache()
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="310551010 train bird")
+    parser = argparse.ArgumentParser(description="310551010")
     parser.add_argument(
-        "--data_path", type=str, default="../../dataset/bird_datasets/train"
-    )
-    parser.add_argument(
-        "--classes_path",
-        type=str,
-        default="../../dataset/bird_datasets/classes.txt",
-    )
-    parser.add_argument(
-        "--training_labels_path",
-        type=str,
-        default="../../dataset/bird_datasets/training_labels.txt",
+        "--data_path", type=str, default=""
     )
     parser.add_argument(
         "--batch_size",
@@ -394,12 +377,17 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output_foloder",
         type=str,
-        default="model/model_test",
+        default="",
     )
     parser.add_argument(
         "--epochs",
         type=int,
         default=100,
+    )
+    parser.add_argument(
+        "--gpu",
+        type=str,
+        default="0",
     )
     args = parser.parse_args()
 
