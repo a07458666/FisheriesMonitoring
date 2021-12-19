@@ -1,0 +1,7 @@
+path: ../../DATA/andysu/The_Street_View_House_Numbers_Dataset  # dataset root dir
+train: train 
+val: valid 
+
+# Classes
+nc: 10  # number of classes
+names: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']

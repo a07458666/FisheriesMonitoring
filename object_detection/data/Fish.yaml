@@ -1,0 +1,7 @@
+path: ../../../DATA/fish/  # dataset root dir
+train: train_all_V2
+val: train_all_V2 
+
+# Classes
+nc: 8  # number of classes
+names: ['0', '1', '2', '3', '4', '5', '6', '7']
