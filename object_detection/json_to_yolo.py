@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 # Fish_Dataset
 PATH_ANN = "../rectangle/"
-PATH_IMAGE = "../../../DATA/fish//train_all_V2/"
+PATH_IMAGE = "../../../DATA/fish/train_all/"
 label_map = {'ALB':0,'BET':1,'DOL':2,'LAG':3,'Nof':4,'OTHER':5,'SHARK':6,'YFT':7}
 
 def get_image_size(image_name):
