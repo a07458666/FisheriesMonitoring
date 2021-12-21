@@ -82,42 +82,6 @@ def update_loss_hist(args, train_list, val_list, name="result"):
     plt.savefig("./checkpoint/{}/{}.png".format(args.output_foloder, name))
     plt.clf()
 
-
-def create_model_BotNet(args):
-    from torchvision.models import resnet50
-
-    layer = BottleStack(
-        dim=256,
-        fmap_size=56,  # set specifically for imagenet's 224 x 224
-        dim_out=2048,
-        proj_factor=4,
-        downsample=True,
-        heads=4,
-        dim_head=128,
-        rel_pos_emb=True,
-        activation=nn.ReLU(),
-    )
-
-    resnet = resnet50(pretrained=True)
-
-    # model surgery
-
-    backbone = list(resnet.children())
-
-    model = nn.Sequential(
-        *backbone[:5],
-        layer,
-        nn.AdaptiveAvgPool2d((1, 1)),
-        nn.Flatten(1),
-        nn.Linear(2048, 200),
-    )
-    # use the 'BotNet'
-
-    # img = torch.randn(2, 3, 224, 224)
-    # preds = model(img) # (2, 1000)
-    return model
-
-
 def create_model(args):
     import timm
 
