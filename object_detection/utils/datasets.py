@@ -667,6 +667,11 @@ def load_image(self, i):
         else:  # read image
             path = self.img_files[i]
             im = cv2.imread(path)  # BGR
+            avg_B = np.average(im[0])
+            avg_G = np.average(im[1])
+            avg_R = np.average(im[2])
+            if (avg_G - 0.05 > avg_B and avg_G - 0.05 > avg_R):
+                im[1] = im[1] * 0.75
             assert im is not None, f'Image Not Found {path}'
         h0, w0 = im.shape[:2]  # orig hw
         r = self.img_size / max(h0, w0)  # ratio

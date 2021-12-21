@@ -75,6 +75,11 @@ class TestImageLoader(Dataset):
     def __getitem__(self, index):
         path = self.imgs[index]
         img = Image.open(os.path.join(self.root, path)).convert("RGB")
+        avg_R = np.average(img[0])
+        avg_G = np.average(img[1])
+        avg_B = np.average(img[2])
+        if (avg_G - 0.05 > avg_B and avg_G - 0.05 > avg_R):
+            img[1] = img[1] * 0.75
         if self.transform is not None:
             img = self.transform(img)
         return img, path

@@ -121,35 +121,35 @@ def create_model_BotNet(args):
 def create_model(args):
     import timm
 
-    # backbone = timm.create_model(
-    #     "vit_base_patch16_224_miil_in21k", pretrained=True
-    # )
-    backbone = SwinTransformer(
-        img_size=224,
-        window_size=7,
-        embed_dim=192,
-        depths=[2, 2, 18, 2],
-        num_heads=[6, 12, 24, 48],
-        num_classes=8,
-        drop_path_rate=0.2,
+    backbone = timm.create_model(
+        "swin_base_patch4_window7_224_in22k", pretrained=True
     )
+#     backbone = SwinTransformer(
+#         img_size=224,
+#         window_size=7,
+#         embed_dim=192,
+#         depths=[2, 2, 18, 2],
+#         num_heads=[6, 12, 24, 48],
+#         num_classes=8,
+#         drop_path_rate=0.2,
+#     )
     if args.pretrain_model_path != "":
         # backbone = torch.load(args.pretrain_model_path).to(device)
         checkpoint = torch.load(args.pretrain_model_path, map_location="cpu")
         msg = backbone.load_state_dict(checkpoint["model"], strict=False)
         # backbone.load_state_dict(torch.load(args.pretrain_model_path)['model']).to(device)
         # set_parameter_requires_grad(backbone, True)
-#     projector = nn.Sequential(
-#         nn.Linear(21841, 2048),
-#         nn.BatchNorm1d(2048),
-#         nn.LeakyReLU(),
-#         nn.Linear(2048, 512),
-#         nn.BatchNorm1d(512),
-#         nn.LeakyReLU(),
-#         nn.Linear(512, 8),
-#     )
-#     model = nn.Sequential(backbone, projector)
-    model = backbone
+    projector = nn.Sequential(
+        nn.Linear(21841, 2048),
+        nn.BatchNorm1d(2048),
+        nn.LeakyReLU(),
+        nn.Linear(2048, 512),
+        nn.BatchNorm1d(512),
+        nn.LeakyReLU(),
+        nn.Linear(512, 8),
+    )
+    model = nn.Sequential(backbone, projector)
+#     model = backbone
     return model
 
 
@@ -268,7 +268,7 @@ def train(args, model, train_loader, val_loader, writer, device):
         momentum=args.momentum,
         weight_decay=args.weight_decay,
     )
-    model_scheduler = CosineAnnealingLR(model_optimizer, T_max=20)
+    model_scheduler = CosineAnnealingLR(model_optimizer, T_max=args.epochs)
     torch.save(model, "./checkpoint/{}/checkpoint.pth.tar".format(args.output_foloder))
     loss_fn = CrossEntropyLS(args.label_smooth)
     scaler = GradScaler()
