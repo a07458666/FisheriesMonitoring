@@ -11,7 +11,6 @@ PATH_IMAGE = "../../../DATA/fish/train_all/"
 label_map = {'ALB':0,'BET':1,'DOL':2,'LAG':3,'Nof':4,'OTHER':5,'SHARK':6,'YFT':7}
 
 def get_image_size(image_name):
-#     print(PATH_IMAGE + image_name)
     im = cv2.imread(PATH_IMAGE + image_name)
     h, w, c = im.shape
     return h,w,c
@@ -22,7 +21,8 @@ def jsonToTxt(data):
         image_name = d['filename'].split("/")[-1]
         fp = open(PATH_IMAGE + image_name.replace(".jpg", ".txt"), "w")
         for ann in anns:
-            label = label_map[ann["class"]]
+            label = 0
+#             label = label_map[ann["class"]]
             x = ann["x"]
             y = ann["y"]
             height = ann["height"]
