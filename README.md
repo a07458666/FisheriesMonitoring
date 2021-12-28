@@ -3,8 +3,8 @@
 This repository is the implementation of Kaggle competitions [Fisheries classification](https://www.kaggle.com/c/the-nature-conservancy-fisheries-monitoring/overview). 
 
 ![fish class](./img/fish.png)
-
-![yolo result](./img/modelArchitecture.png)
+![yolo result](./img/yolo.png)
+![model Architecture](./img/modelArchitecture.png)
 
 
 ## Requirements
