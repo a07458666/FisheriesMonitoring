@@ -132,3 +132,12 @@ dmypy.json
 model/
 
 object_detection/wandb/
+object_detection/runs/
+runs/
+wandb/
+*.pt
+checkpoint/
+*.csv
+*.ipynb_checkpoints
+*.pyc
+*/__pycache__/

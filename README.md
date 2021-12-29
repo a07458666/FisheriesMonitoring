@@ -23,6 +23,7 @@ pip install -r requirements.txt
 To train the model(s), run this command:
 
 ```train
+cd object_detection
 python3 train_yolov5.py --data ./data/fish.yaml --batch 16 --epochs 50 --cfg models/yolov5x.yaml --name <model name> --weights yolov5x.pt --imgsz 640
 ```
 
@@ -50,7 +51,12 @@ python train.py --data_path <train_data_path> --classes_path <classes.txt> --tra
 
 run [`./object_detection/inference_merge.ipynb`](https://github.com/a07458666/FisheriesMonitoring/blob/master/object_detection/inference_merge.ipynb)
 
->📋 Will output `answer.csv`
+* Need to set the model path (swin_crop_path, yolo_path)
+* Need to set stg1, stg2 folder path
+* Need to set the swin(Full) csv path(https://github.com/LordHo/2021_VRDL_Final_Method_4)
+
+
+>📋 Will output `answer_merge.csv`
 ## Pre-trained Models
 
 ### Swin

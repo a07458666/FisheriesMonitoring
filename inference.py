@@ -87,7 +87,7 @@ def predict(root, path, trans, device, model, class_to_idx):
     return output
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="310551010 inference")
+    parser = argparse.ArgumentParser(description=" inference")
     parser.add_argument(
         "--data_path", type=str, default="../../DATA/fish/test"
     )
